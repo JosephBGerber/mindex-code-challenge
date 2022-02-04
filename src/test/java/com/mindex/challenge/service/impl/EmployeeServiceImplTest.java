@@ -1,6 +1,7 @@
 package com.mindex.challenge.service.impl;
 
 import com.mindex.challenge.data.Employee;
+import com.mindex.challenge.data.ReportingStructure;
 import com.mindex.challenge.service.EmployeeService;
 import org.junit.Before;
 import org.junit.Test;
@@ -15,6 +16,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.util.List;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
@@ -24,6 +27,7 @@ public class EmployeeServiceImplTest {
 
     private String employeeUrl;
     private String employeeIdUrl;
+    private String employeeReadReportingStructureUrl;
 
     @Autowired
     private EmployeeService employeeService;
@@ -38,6 +42,7 @@ public class EmployeeServiceImplTest {
     public void setup() {
         employeeUrl = "http://localhost:" + port + "/employee";
         employeeIdUrl = "http://localhost:" + port + "/employee/{id}";
+        employeeReadReportingStructureUrl = "http://localhost:" + port + "/employee/{id}/reporting";
     }
 
     @Test
@@ -76,6 +81,54 @@ public class EmployeeServiceImplTest {
 
         assertEmployeeEquivalence(readEmployee, updatedEmployee);
     }
+
+    @Test
+    public void testReadReportingStructure() {
+        Employee randal = new Employee();
+        randal.setFirstName("Randal");
+        randal.setLastName("Lindsey");
+        randal.setDepartment("Engineering");
+        randal.setPosition("Developer");
+
+        randal = restTemplate.postForEntity(employeeUrl, randal, Employee.class).getBody();
+        assertNotNull(randal);
+
+        Employee lee = new Employee();
+        lee.setFirstName("Lee");
+        lee.setLastName("Chapman");
+        lee.setDepartment("Engineering");
+        lee.setPosition("Manager");
+        lee.setDirectReports(List.of(randal));
+
+        lee = restTemplate.postForEntity(employeeUrl, lee, Employee.class).getBody();
+        assertNotNull(lee);
+
+        Employee harriet = new Employee();
+        harriet.setFirstName("Harriet");
+        harriet.setLastName("Austin");
+        harriet.setDepartment("Management");
+        harriet.setPosition("CEO");
+        harriet.setDirectReports(List.of(lee));
+
+        harriet = restTemplate.postForEntity(employeeUrl, harriet, Employee.class).getBody();
+        assertNotNull(harriet);
+
+        // Test no reports.
+        ReportingStructure structure = restTemplate.getForObject(employeeReadReportingStructureUrl, ReportingStructure.class, randal.getEmployeeId());
+        assertEquals(randal.getEmployeeId(), structure.getEmployee().getEmployeeId());
+        assertEquals(0, structure.getNumberOfReports());
+
+        // Test one direct report.
+        structure = restTemplate.getForObject(employeeReadReportingStructureUrl, ReportingStructure.class, lee.getEmployeeId());
+        assertEquals(lee.getEmployeeId(), structure.getEmployee().getEmployeeId());
+        assertEquals(1, structure.getNumberOfReports());
+
+        // Test one direct report and one indirect report.
+        structure = restTemplate.getForObject(employeeReadReportingStructureUrl, ReportingStructure.class, harriet.getEmployeeId());
+        assertEquals(harriet.getEmployeeId(), structure.getEmployee().getEmployeeId());
+        assertEquals(2, structure.getNumberOfReports());
+    }
+
 
     private static void assertEmployeeEquivalence(Employee expected, Employee actual) {
         assertEquals(expected.getFirstName(), actual.getFirstName());
